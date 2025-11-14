@@ -329,4 +329,87 @@ type function ToKebabCase(s: type)
 	return types.singleton(kebab)
 end
 
+
+-- varags dont work for type functions right now :( ignore for now
+export type function Pick(object: type, ...: type)
+	if object.tag ~= "table" then
+		return object
+	end
+
+	local result = types.newtable()
+	local keys = { ... }
+
+	for key, prop in object:properties() do
+		for _, pickKey in keys do
+			if pickKey:is("singleton") and typeof(pickKey:value()) == "string" then
+				if key == pickKey:value() then
+					if prop.read ~= prop.write then
+						result:setreadproperty(key, prop.read)
+						result:setwriteproperty(key, prop.write)
+					else
+						result:setproperty(key, prop.read)
+					end
+					break
+				end
+			end
+		end
+	end
+
+	return result
+end
+
+-- Merges two table types, b will override and a types
+export type function Merge(a: type, b: type)
+	if not a:is("table") or not b:is("table") then
+		return types.newtable()
+	end
+
+	local result = types.newtable()
+
+	local indexer = b:indexer()
+	if indexer ~= nil then
+		result:setreadindexer(indexer.index, indexer.readresult)
+		result:setwriteindexer(indexer.index, indexer.writeresult)
+	end
+
+	for key, prop in a:properties() do
+		if prop.read ~= prop.write then
+			result:setreadproperty(key, prop.read)
+			result:setwriteproperty(key, prop.write)
+		else
+			result:setproperty(key, prop.read)
+		end
+	end
+
+	for key, prop in b:properties() do
+		if prop.read ~= prop.write then
+			result:setreadproperty(key, prop.read)
+			result:setwriteproperty(key, prop.write)
+		else
+			result:setproperty(key, prop.read)
+		end
+	end
+
+	return result
+end
+
+export type function ValuesOf(object: type)
+	if object.tag ~= "table" then
+		return types.never
+	end
+
+	local values = {}
+	for _, prop in object:properties() do
+		table.insert(values, prop.read)
+	end
+
+	if #values == 0 then
+		return types.never
+	elseif #values == 1 then
+		return values[1]
+	else
+		return types.unionof(unpack(values))
+	end
+end
+
 return 1
